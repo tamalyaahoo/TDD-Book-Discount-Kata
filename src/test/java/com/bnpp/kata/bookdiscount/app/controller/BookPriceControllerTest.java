@@ -1,6 +1,6 @@
 package com.bnpp.kata.bookdiscount.app.controller;
 
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,45 +25,53 @@ class BookPriceControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @BeforeEach
-    void setup() {
-        objectMapper = new ObjectMapper();
-    }
-
     @Test
+    @DisplayName("POST /api/price/calculate → returns 200 OK and correct price for valid input")
     void testCalculatePriceEndpointSuccess() throws Exception {
-        Map<String, Object> request = new HashMap<>();
-        Map<String, Integer> items = new HashMap<>();
-        items.put("Clean Code", 1);
-        items.put("The Clean Coder", 1);
-        request.put("items", items);
+        String requestJson = """
+        {
+          "bookItemList": [
+            { "title": "Clean Code",      "quantity": 1 },
+            { "title": "The Clean Coder", "quantity": 1 }
+          ]
+        }
+        """;
 
         mockMvc.perform(post("/api/price/calculate")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(requestJson))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalPrice", is(95.0)));
+                .andExpect(jsonPath("$.bestOfferedPrice", is(95.0)));
     }
 
     @Test
+    @DisplayName("POST /api/price/calculate → returns 400 Bad Request when 'items' field is missing")
     void testCalculatePriceEndpointValidationError() throws Exception {
-        Map<String, Object> request = new HashMap<>();
+        String requestJson = """
+        {
+          "unknownField": "invalid"
+        }
+        """;
         // missing items field
         mockMvc.perform(post("/api/price/calculate")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(requestJson))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
+    @DisplayName("POST /api/price/calculate → returns 400 Bad Request when quantity is negative")
     void testCalculatePriceEndpointNegativeQuantity() throws Exception {
-        Map<String, Object> request = new HashMap<>();
-        Map<String, Integer> items = new HashMap<>();
-        items.put("Clean Code", -1);
-        request.put("items", items);
+        String requestJson = """
+        {
+          "bookItemList": [
+            { "title": "Clean Code", "quantity": -1 }
+          ]
+        }
+        """;
         mockMvc.perform(post("/api/price/calculate")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(requestJson))
                 .andExpect(status().isBadRequest());
     }
 }

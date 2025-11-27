@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("api/price")
 @Validated
-@Tag(name = "Price", description = "API to calculate book basket price with discounts")
+@Tag(name = "Book-Price", description = "API to calculate book basket price with discounts")
 public class BookPriceController {
 
     private final BookPriceService priceService;
@@ -33,7 +33,8 @@ public class BookPriceController {
     )
     @PostMapping("/calculate")
     public ResponseEntity<BookPriceResponse> calculatePrice(@Valid @RequestBody UserBasketRequest request) {
-        double totalPrice = priceService.calculatePrice(request.getItems());
-        return ResponseEntity.ok(new BookPriceResponse(totalPrice));
+        System.out.println("Controller = "+request.bookItemList());
+        double totalPrice = priceService.calculatePrice(request.bookItemList());
+        return ResponseEntity.ok(BookPriceResponse.of(request, totalPrice));
     }
 }

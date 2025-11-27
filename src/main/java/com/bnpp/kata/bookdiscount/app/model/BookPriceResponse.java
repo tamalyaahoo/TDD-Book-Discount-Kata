@@ -1,20 +1,12 @@
 package com.bnpp.kata.bookdiscount.app.model;
 
-public class BookPriceResponse {
+public record BookPriceResponse(
+        UserBasketRequest userRequest,
+        double bestOfferedPrice
+) {
 
-    private double totalPrice;
-
-    public BookPriceResponse() { }
-
-    public BookPriceResponse(double totalPrice) {
-        this.totalPrice = totalPrice;
+    public static BookPriceResponse of(UserBasketRequest request, double price){
+        return new BookPriceResponse(request, price);
     }
 
-    public double getTotalPrice() {
-        return totalPrice;
-    }
-
-    public void setTotalPrice(double totalPrice) {
-        this.totalPrice = totalPrice;
-    }
 }

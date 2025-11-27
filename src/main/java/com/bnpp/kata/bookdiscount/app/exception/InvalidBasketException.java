@@ -1,7 +1,9 @@
 package com.bnpp.kata.bookdiscount.app.exception;
 
+import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
+@Getter
 public class InvalidBasketException extends RuntimeException{
 
     private final HttpStatus status;
@@ -15,7 +17,4 @@ public class InvalidBasketException extends RuntimeException{
         this.status = status;
     }
 
-    public HttpStatus getStatus() {
-        return status;
-    }
 }

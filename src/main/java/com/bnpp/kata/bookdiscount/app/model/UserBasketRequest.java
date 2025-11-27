@@ -1,23 +1,13 @@
 package com.bnpp.kata.bookdiscount.app.model;
 
-import java.util.Map;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
-public class UserBasketRequest {
+import java.util.List;
 
-    private Map<String, Integer> items;
+public record UserBasketRequest(
 
-    public UserBasketRequest() {
-    }
-
-    public UserBasketRequest(Map<String, Integer> items) {
-        this.items = items;
-    }
-
-    public Map<String, Integer> getItems() {
-        return items;
-    }
-
-    public void setItems(Map<String, Integer> items) {
-        this.items = items;
-    }
-}
+        @NotNull(message = "Items must not be null")
+        @Size(min = 1, message = "Must contain at least one book")
+        List<BookItem> bookItemList
+) {}

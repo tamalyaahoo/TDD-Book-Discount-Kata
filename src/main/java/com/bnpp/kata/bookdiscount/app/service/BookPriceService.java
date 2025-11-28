@@ -29,7 +29,7 @@ public class BookPriceService {
 
         // Step 2: Normalize titles (case-insensitive) + merge duplicates
         Map<String, Integer> mergedBookQuantity = this.mergeDuplicates(bookItemList);
-        System.out.println(mergedBookQuantity);
+
         // Step 3: Extract sorted quantities of positive integers
         List<Integer> sortedCounts = this.getSortedList(mergedBookQuantity);
 

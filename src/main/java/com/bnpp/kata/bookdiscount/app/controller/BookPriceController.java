@@ -33,7 +33,6 @@ public class BookPriceController {
     )
     @PostMapping("/calculate")
     public ResponseEntity<BookPriceResponse> calculatePrice(@Valid @RequestBody UserBasketRequest request) {
-        System.out.println("Controller = "+request.bookItemList());
         double totalPrice = priceService.calculatePrice(request.bookItemList());
         return ResponseEntity.ok(BookPriceResponse.of(request, totalPrice));
     }

@@ -13,9 +13,6 @@ import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import java.util.HashMap;
-import java.util.Map;
-
 @SpringBootTest
 @AutoConfigureMockMvc
 class BookPriceControllerTest {

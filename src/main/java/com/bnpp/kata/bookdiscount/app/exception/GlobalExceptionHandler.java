@@ -13,16 +13,21 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final String ERROR = "error";
+    private static final String VALIDATION_FAILED ="Validation failed";
+    private static final String DETAILS = "details";
+    private static final String INTERNAL_SERVER_ERROR ="Internal server error";
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationException(MethodArgumentNotValidException ex) {
         Map<String, Object> body = new HashMap<>();
-        body.put("error", "Validation failed");
+        body.put(ERROR, VALIDATION_FAILED);
 
         Map<String, String> fieldErrors = new HashMap<>();
         for (FieldError fieldError : ex.getBindingResult().getFieldErrors()) {
             fieldErrors.put(fieldError.getField(), fieldError.getDefaultMessage());
         }
-        body.put("details", fieldErrors);
+        body.put(DETAILS, fieldErrors);
 
         return ResponseEntity.badRequest().body(body);
     }
@@ -30,7 +35,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidBasketException.class)
     public ResponseEntity<Map<String, Object>> handleInvalidBasketException(InvalidBasketException ex) {
         Map<String, Object> body = new HashMap<>();
-        body.put("error", ex.getMessage());
+        body.put(ERROR, ex.getMessage());
         HttpStatus status = ex.getStatus() != null ? ex.getStatus() : HttpStatus.BAD_REQUEST;
         return ResponseEntity.status(status).body(body);
     }
@@ -38,7 +43,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGenericException(Exception ex) {
         Map<String, Object> body = new HashMap<>();
-        body.put("error", "Internal server error");
+        body.put(ERROR, INTERNAL_SERVER_ERROR);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 }

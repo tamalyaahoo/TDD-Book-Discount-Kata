@@ -4,7 +4,12 @@ import com.bnpp.kata.bookdiscount.app.exception.InvalidBasketException;
 import com.bnpp.kata.bookdiscount.app.model.BookItem;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Optional;
+import java.util.Objects;
+import java.util.Comparator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -18,153 +23,185 @@ public class BookPriceService {
             4, 0.20,
             5, 0.25
     );
+
     private static final double BOOK_PRICE = 50.0;
 
-    /*
-     * Calculate Book Price as per basket.
+    /**
+     * Main method orchestrating the entire price calculation:
+     * 1. Validate user input
+     * 2. Normalize + merge titles (case-insensitive)
+     * 3. Prepare sorted quantity list
+     * 4. Compute optimal discounted price.
      */
-    public double calculatePrice(List<BookItem> bookItemList) {
-        // Step 1: Validate raw basket
-        this.validateBasket(bookItemList);
-
-        // Step 2: Normalize titles (case-insensitive) + merge duplicates
-        Map<String, Integer> mergedBookQuantity = this.mergeDuplicates(bookItemList);
-
-        // Step 3: Extract sorted quantities of positive integers
-        List<Integer> sortedCounts = this.getSortedList(mergedBookQuantity);
-
+    public double calculatePrice(List<BookItem> items) {
+        validateBasket(items);
+        Map<String, Integer> merged = mergeDuplicateTitles(items);
+        List<Integer> sortedCounts = extractSortedCounts(merged);
         if (sortedCounts.isEmpty()) {
             throw new InvalidBasketException("Basket must contain at least one book with quantity > 0");
         }
-
-        Map<String, Double> cacheResult = new HashMap<>();
-        return this.calculateOptimalPrice(sortedCounts, cacheResult);
+        return computeOptimalPrice(sortedCounts, new HashMap<>());
     }
 
-    /*
-     * Validate the user input params.
+    // =======================================================================
+    //                            VALIDATION
+    // =======================================================================
+
+    /**
+     * Validates user input for:
+     * - Null list
+     * - Empty list
+     * - Invalid book title (null/blank)
+     * - Invalid quantity (null/negative)
+     * - Ensures at least one positive quantity
      */
-    private void validateBasket(List<BookItem> bookItemList){
+    private void validateBasket(List<BookItem> items) {
+        requireNonNullList(items);
+        requireNonEmptyList(items);
+        validateEachBookItem(items);
+        ensureAtLeastOnePositiveQuantity(items);
+    }
 
-        // Validate basket not null
-        Optional.ofNullable(bookItemList)
+    private void requireNonNullList(List<BookItem> items) {
+        Optional.ofNullable(items)
                 .orElseThrow(() -> new InvalidBasketException("Basket must not be null"));
+    }
 
-        // Validate basket has at least one entry
-        Optional.of(bookItemList)
-                .filter( items -> !items.isEmpty())
+    private void requireNonEmptyList(List<BookItem> items) {
+        Optional.of(items)
+                .filter(bookList -> !bookList.isEmpty())
                 .orElseThrow(() -> new InvalidBasketException("Basket must contain at least one entry"));
+    }
 
-        // Validate each BookItem object
-        bookItemList.stream()
-                .forEach(item -> {
-                    // ---- Validate Title ----
-                    String title = Optional.ofNullable(item.title())
-                            .map(String::trim)
-                            .filter(bookTitle -> !bookTitle.isEmpty())
-                            .orElseThrow(() ->
-                                    new InvalidBasketException("Book title must not be null or empty")
-                            );
-                    // ---- Validate Quantity Exists ----
-                    Integer qty = Optional.ofNullable(item.quantity())
-                            .orElseThrow(() ->
-                                    new InvalidBasketException("Quantity for book '%s' must not be null".formatted(title))
-                            );
-                    // ---- Validate Quantity Non-negative ----
-                    Optional.of(qty)
-                            .filter(quantity -> quantity >= 0)
-                            .orElseThrow(() ->
-                                    new InvalidBasketException("Quantity for book '%s' must not be negative"
-                                            .formatted(title))
-                            );
-                });
+    private void validateEachBookItem(List<BookItem> items) {
+        items.forEach(item -> {
+            String title = Optional.ofNullable(item.title())
+                    .map(String::trim)
+                    .filter(bookTitle -> !bookTitle.isEmpty())
+                    .orElseThrow(() ->
+                            new InvalidBasketException("Book title must not be null or empty"));
 
-        // ---- Validate: at least one quantity > 0 ----
-        bookItemList.stream()
+            Integer qty = Optional.ofNullable(item.quantity())
+                    .orElseThrow(() ->
+                            new InvalidBasketException("Quantity for book '%s' must not be null".formatted(title)));
+
+            Optional.of(qty)
+                    .filter(quantity -> quantity >= 0)
+                    .orElseThrow(() ->
+                            new InvalidBasketException("Quantity for book '%s' must not be negative".formatted(title)));
+        });
+    }
+
+    private void ensureAtLeastOnePositiveQuantity(List<BookItem> items) {
+        items.stream()
                 .map(BookItem::quantity)
                 .filter(Objects::nonNull)
-                .filter(q -> q > 0)
-                .findAny()
+                .filter( count-> count > 0)
+                .findFirst()
                 .orElseThrow(() ->
-                        new InvalidBasketException("Basket must contain at least one book with quantity > 0")
-                );
+                        new InvalidBasketException("Basket must contain at least one book with quantity > 0"));
     }
 
-    private Map<String, Integer> mergeDuplicates(List<BookItem> bookItemList){
-        return bookItemList.stream()
+    // =======================================================================
+    //                    MERGING + NORMALIZATION LAYER
+    // =======================================================================
+
+    /**
+     * Merges duplicate titles ignoring case,
+     * producing a Map<title(lowercase), totalQuantity>.
+     */
+    private Map<String, Integer> mergeDuplicateTitles(List<BookItem> items) {
+        return items.stream()
                 .collect(Collectors.toMap(
-                        bookItemObj -> bookItemObj.title().trim().toLowerCase(),   // normalized title
+                        item -> normalizeTitle(item.title()),
                         BookItem::quantity,
-                        Integer::sum         // merge duplicates items.
+                        Integer::sum
                 ));
     }
+    /*
+     * Convert all input name as lower-case to avoid duplicate entry.
+     */
+    private String normalizeTitle(String title) {
+        return title.trim().toLowerCase();
+    }
 
-    private List<Integer> getSortedList(Map<String, Integer> mergedBookQuantity){
-        return mergedBookQuantity.values().stream()
+    /**
+     * Extracts quantities > 0 and sorts them descending.
+     */
+    private List<Integer> extractSortedCounts(Map<String, Integer> merged) {
+        return merged.values().stream()
                 .filter(quantity -> quantity != null && quantity > 0)
                 .sorted(Comparator.reverseOrder())
                 .toList();
     }
 
-    /*
-     * Algo developed for calculation discount price.
+    // =======================================================================
+    //                          DYNAMIC PROGRAMMING (DP)
+    // =======================================================================
+
+    /**
+     * Recursively computes the minimum possible total price by considering:
+     * - All possible groups of distinct books (1–5 titles)
+     * - Associated discounts
+     * - Remaining book counts after forming each group
+     * Memoization avoids re-solving duplicate subproblems.
      */
-    private double calculateOptimalPrice(List<Integer> bookCounts, Map<String, Double> cacheResult) {
-        // ------------------------------------------------------------
-        // Step 1: Normalize the state → remove zero-count books and sort descending
-        // ------------------------------------------------------------
-        var normalizedState = bookCounts.stream()
+    private double computeOptimalPrice(List<Integer> bookCounts, Map<String, Double> cache) {
+        List<Integer> normalized = normalizeCounts(bookCounts);
+        if (normalized.isEmpty()) {
+            return 0.0;
+        }
+        String key = normalized.toString();
+        if (cache.containsKey(key)) {
+            return cache.get(key);
+        }
+        double bestPrice = tryAllGroupSizes(normalized, cache);
+        cache.put(key, bestPrice);
+        return bestPrice;
+    }
+
+    private List<Integer> normalizeCounts(List<Integer> counts) {
+        return counts.stream()
                 .filter(count -> count > 0)
                 .sorted(Comparator.reverseOrder())
                 .toList();
+    }
 
-        // If no books left → price is zero
-        if (normalizedState.isEmpty()) {
-            return 0.0;
-        }
-        // ------------------------------------------------------------
-        // Step 2: If this exact combination of book counts was already
-        //         solved, return the cached result.
-        // ------------------------------------------------------------
-        var cacheKey = normalizedState.toString();
-
-        var cachedResult = Optional.ofNullable(cacheResult.get(cacheKey));
-        if (cachedResult.isPresent()) {
-            return cachedResult.get();
-        }
-        // ------------------------------------------------------------
-        // Step 3: Compute the optimal (minimum) price by trying all
-        //         possible distinct-group sizes.
-        // ------------------------------------------------------------
-        int distinctTitleCount = normalizedState.size();
-        // Try forming groups of size 1 to N (N = number of distinct titles)
-        var bestPrice = IntStream.rangeClosed(1, distinctTitleCount)
-                .mapToDouble(groupSize -> {
-                    // -- Step 3a: Compute new state after taking 1 copy
-                    //  from the 'groupSize' most abundant books.
-                    var updatedState = IntStream.range(0, distinctTitleCount)
-                            .map(idx -> idx < groupSize
-                                    ? normalizedState.get(idx) - 1
-                                    : normalizedState.get(idx))
-                            .boxed()
-                            .toList();
-
-                    // -- Step 3b: Compute group cost using predefined discount rules
-                    var discount = DISCOUNTS.getOrDefault(groupSize, 0.0);
-                    var groupCost = groupSize * BOOK_PRICE * (1 - discount);
-
-                    // -- Step 3c: Recursively compute remaining price
-                    var remainingCost = calculateOptimalPrice(updatedState, cacheResult);
-
-                    return groupCost + remainingCost;
-                })
-                // Step 4: find the minimum total price across all group sizes
+    /**
+     * Tries group sizes from 1 to N distinct titles and
+     * returns the cheapest combination.
+     */
+    private double tryAllGroupSizes(List<Integer> state, Map<String, Double> cache) {
+        int maxGroupSize = state.size();
+        return IntStream.rangeClosed(1, maxGroupSize)
+                .mapToDouble(size -> computeCostForGroup(size, state, cache))
                 .min()
                 .orElse(Double.MAX_VALUE);
-        // ------------------------------------------------------------
-        // Step 5: Cache and return result
-        // ------------------------------------------------------------
-        cacheResult.put(cacheKey, bestPrice);
-        return bestPrice;
+    }
+
+    /**
+     * Computes:
+     * - New state after forming a group of size 'groupSize'
+     * - Cost of that group based on discount rules
+     * - Total cost = group cost + recursive cost of remaining books
+     */
+    private double computeCostForGroup(int groupSize, List<Integer> state, Map<String, Double> cache) {
+        List<Integer> newState = applyGroupSelection(state, groupSize);
+        double discount = DISCOUNTS.getOrDefault(groupSize, 0.0);
+        double groupCost = groupSize * BOOK_PRICE * (1 - discount);
+        double recursiveCost = computeOptimalPrice(newState, cache);
+        return groupCost + recursiveCost;
+    }
+
+    /**
+     * Reduces count of the first 'groupSize' titles by 1,
+     * producing the next DP state.
+     */
+    private List<Integer> applyGroupSelection(List<Integer> state, int groupSize) {
+        return IntStream.range(0, state.size())
+                .map(i -> i < groupSize ? state.get(i) - 1 : state.get(i))
+                .boxed()
+                .toList();
     }
 }
+
